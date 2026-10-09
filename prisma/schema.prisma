@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  supervisor
+  sales
+  customer
+}
+
+enum LeadStatus {
+  new
+  follow_up
+  visit
+  spk
+  do_invoice  // 'do' is a reserved keyword in some contexts, so using do_invoice
+  dec
+  closed_won
+  closed_lost
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  completed
+  cancelled
+}
+
+model User {
+  id             String          @id @default(uuid())
+  role           Role            @default(customer)
+  full_name      String
+  email          String?         @unique
+  phone          String          @unique
+  password       String?
+  created_at     DateTime        @default(now())
+
+  // Relations
+  customerLeads  Lead[]          @relation("CustomerLeads")
+  assignedLeads  Lead[]          @relation("AssignedSalesLeads")
+  activities     LeadActivity[]
+  serviceBookings ServiceBooking[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id            String          @id @default(uuid())
+  name          String
+  category      String
+  thumbnail_url String?         @db.Text
+  is_active     Boolean         @default(true)
+
+  // Relations
+  variants      VehicleVariant[]
+  colors        VehicleColor[]
+  leads         Lead[]
+
+  @@map("vehicles")
+}
+
+model VehicleVariant {
+  id           String   @id @default(uuid())
+  vehicle_id   String
+  variant_name String
+  price_otr    Decimal  @db.Decimal(15, 2)
+  features     Json?    // Stores array of features or objects
+
+  vehicle      Vehicle  @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_variants")
+}
+
+model VehicleColor {
+  id           String   @id @default(uuid())
+  vehicle_id   String
+  color_name   String
+  hex_code     String
+  image_url    String?  @db.Text
+
+  vehicle      Vehicle  @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_colors")
+}
+
+model Lead {
+  id            String       @id @default(uuid())
+  customer_id   String
+  assigned_to   String?
+  vehicle_id    String?
+  source        String       // e.g., 'Website', 'WhatsApp', 'Walk-in'
+  status        LeadStatus   @default(new)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  customer      User         @relation("CustomerLeads", fields: [customer_id], references: [id])
+  sales         User?        @relation("AssignedSalesLeads", fields: [assigned_to], references: [id])
+  vehicle       Vehicle?     @relation(fields: [vehicle_id], references: [id])
+  activities    LeadActivity[]
+
+  @@map("leads")
+}
+
+model LeadActivity {
+  id            String   @id @default(uuid())
+  lead_id       String
+  user_id       String   // Admin/Sales who performed the activity
+  activity_type String   // 'call', 'whatsapp', 'visit', 'status_change'
+  notes         String?  @db.Text
+  created_at    DateTime @default(now())
+
+  lead          Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [user_id], references: [id])
+
+  @@map("lead_activities")
+}
+
+model Promo {
+  id            String   @id @default(uuid())
+  title         String
+  image_url     String?  @db.Text
+  start_date    DateTime
+  end_date      DateTime
+  is_active     Boolean  @default(true)
+
+  @@map("promos")
+}
+
+model ServiceBooking {
+  id            String        @id @default(uuid())
+  customer_id   String
+  vehicle_model String
+  police_number String
+  booking_date  DateTime
+  status        BookingStatus @default(pending)
+  notes         String?       @db.Text
+  created_at    DateTime      @default(now())
+
+  customer      User          @relation(fields: [customer_id], references: [id])
+
+  @@map("service_bookings")
+}
+
+model Article {
+  id          String   @id @default(uuid())
+  title       String
+  category    String   // 'News & Event', 'Insight', 'Electrified', 'Gazoo Racing', 'Tips'
+  image_url   String?  @db.Text
+  published_at DateTime @default(now())
+  is_active   Boolean  @default(true)
+  
+  @@map("articles")
+}
